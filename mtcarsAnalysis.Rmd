@@ -1,0 +1,91 @@
+---
+title: "Motor Trend Cars Analysis"
+author: "S. Kairs"
+output: pdf_document
+---
+
+## Executive Summary  
+In this report we investigate the relationship between transmission type and fuel efficiency, as reported in the 1974 edition of Motor Trend US magazine.  The analysis is prepared as part of the [Regression Models][courselink] course, offered by [Johns Hopkins University][jhu] on [Coursera][coursera].  
+
+We will show that a manual transmission is more fuel efficient, and that transmission type alone is not a sufficient predictor of fuel efficiency.  When other variables--such as weight, number of cylinders and horsepower--are added, the fitted model is more accurate. **Adjusted for these additional variables, a manual transmission will increase mpg by a factor of 1.8 over an automatic.**
+
+## Loading the dataset
+The `mtcars` dataset is included in the `datasets` package of R and consists of fuel consumption and 10 aspects of automobile design and performance for 32 automobiles (1973–74 models).  We load in the data set, and convert the following variables to factors: `cyl`, `vs`, `am`, `gear`, `carb`.  
+```{r echo=FALSE}
+data(mtcars)
+mtcars$cyl <- factor(mtcars$cyl)
+mtcars$vs <- factor(mtcars$vs)
+mtcars$am <- factor(mtcars$am, labels=c('Automatic','Manual'))
+mtcars$gear <- factor(mtcars$gear)
+mtcars$carb <- factor(mtcars$carb)
+```
+
+## Exploratory Data Analysis  
+We first plot the pair-wise relationships between all of the variables.  (Figure 1, Appendix.) We are principally concerned with the influence other variables have on fuel efficiency, or `mpg`, so we focus on the sub-plots for these interactions.  Note that `cyl`, `disp`, `hp`, `drat`, `wt`, `vs` and `am` seem to have a strong correlation with mpg.
+
+Next, we plot the `mpg` as the response and `am` as the predictor.  (Figure 2, Appendix.) The resulting boxplot shows that MPG ratings for cars with manual transmissions are higher than for cars with automatic transmissions.  
+
+A Welch Two Sample t-test shows this is statistically significant, with a p-value of `r t.test(mtcars[mtcars$am == "Automatic",]$mpg, mtcars[mtcars$am == "Manual",]$mpg)$p.value`.  However, the r-squared value for a linear fit of this relationship, `r summary(lm(mpg ~ am, mtcars))$r.squared`, indicates that this model explains only `r round(summary(lm(mpg ~ am, mtcars))$r.squared*100,2)`% of the variance.  **Transmission type alone is not a particularly good predictor of fuel efficiency.**
+
+## Regression Analysis  
+### Multivariable Linear Regression and Model Selection
+To generate a multivariable regression model, we build an initial model with `mpg` as the outcome and all other variables as predictors.  Then we perform step-wise model selection by using the `step` function to build and evaluate many models.  The code is shown below, but the output is suppressed for brevity.  
+```{r results='hide'}
+fit0 <- lm(mpg ~ ., mtcars)
+fit1 <- step(fit0, direction = "both")
+```
+
+The best model includes predictor varibles `cyl`, `hp`, `wt`, and `am`.  The r-squared value for this adjusted model is `r summary(fit1)$adj.r.squared`.  The improved model explains `r round(summary(fit1)$adj.r.squared*100,2)`% of the variance in the data set.  See the summary below:
+```{r echo=FALSE}
+summary(fit1)
+```
+
+Using ANOVA, we compare this best fit model with the model using `am` as the only predictor variable.  The p-value is highly significant and we reject the null hypothesis that the confounding variables do not contribute to the accuracy of the improved model. See below:  
+```{r echo=FALSE}
+fit <- lm(mpg ~ am, mtcars)
+anova(fit, fit1)
+```
+
+### Residuals and diagnostics  
+The residual diagnostic plots for the best fit model, `fit1`, can be found in Figure 3 of the Appendix.  The random scatter of the residuals vs. fitted values points verifies the assumption of indpendence (homoskedasticity).  Points in the Normal Q-Q plot fall mostly on the identity line, indicating normality.  We can further test the residuals for normality using a Shapiro-Wilk test.  The resulting p-value of `r shapiro.test(fit1$residuals)$p.value` indicates that we cannot reject the null hypothesis or, more plainly, that the residuals are normally distributed.  
+
+## Conclusions  
+Based on our analysis of our best fit model, we infer the following:  
+
+1. Cars with `Manual` transmissions get 1.8x more miles per gallon compared to cars with Automatic transmission, adjusted by `hp`, `cyl`, and `wt`, with a 95% CI of `r round(confint(fit1, "amManual")[1],2)` to `r round(confint(fit1, "amManual")[2],2)` mpg. 
+
+2. `mpg` will decrease by 2.5 (adjusted by `hp`, `cyl`, and `am`) for every 1000 lb increase in `wt`.  
+
+3. `mpg` decreases very slightly with increase of `hp` (adjusted for `cyl`, `wt` and `am`).  
+
+4. If number of cylinders, `cyl`, increases from 4 to 6 and again to 8, mpg will decrease by 3x and 2.2x respectively (adjusted by `hp`, `wt`, and `am`).   
+
+
+[courselink]: http://class.coursera.org/regmods-007/
+[jhu]: https://www.coursera.org/jhu
+[coursera]: https://www.coursera.org/
+
+\pagebreak
+
+##Appendix  
+**Figure 1. Pairs Plot for `mtcars` data set**  
+Automatic transmission data points plotted in green; manual in blue.  
+```{r echo=FALSE}
+cols <- character(nrow(mtcars))
+cols[] <- "black"
+cols[mtcars$am == "Automatic"] <- "green4"
+cols[mtcars$am == "Manual"] <- "lightblue2"
+pairs(mtcars, panel=panel.smooth, pch = 21, bg = cols)
+```    
+
+**Figure 2. Boxplot of fuel efficiency vs transmission type**  
+```{r echo=FALSE}
+plot(mpg ~ am, mtcars, col=c("green4", "lightblue2"))
+```
+
+**Figure 3. Residual diagnostic plots for best fit model (fit1)**  
+Automatic transmission data points plotted in green; manual in blue.  
+```{r echo=FALSE, fig.height=8, fig.width=8}
+par(mfrow=c(2,2))
+plot(fit1, pch=21, bg=cols)
+```
